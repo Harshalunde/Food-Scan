@@ -8,7 +8,7 @@
 
 **Empowering healthier choices through instant nutritional insights**
 
-[Live Demo](#) · [Report Bug](#) · [Request Feature](#)
+[Live Demo](https://foodscanv2.vercel.app/) · [Report Bug](#) · [Request Feature](#)
 
 </div>
 
