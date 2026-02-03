@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import authService from '../services/authService';
 
 const ResetPassword = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { updatePassword } = useAuth();
 
     const email = location.state?.email || '';
     const verified = location.state?.verified || false;
@@ -72,22 +71,20 @@ const ResetPassword = () => {
 
         setIsLoading(true);
 
-        // Simulate API call delay
-        setTimeout(() => {
-            const result = updatePassword(email, formData.newPassword);
+        // Call backend API
+        const result = await authService.resetPassword(email, formData.newPassword);
 
-            if (result.success) {
-                setSuccess(true);
-                setTimeout(() => {
-                    navigate('/login', {
-                        state: { message: 'Password reset successful! Please login with your new password.' }
-                    });
-                }, 2000);
-            } else {
-                setErrors({ general: result.error || 'Failed to reset password. Please try again.' });
-                setIsLoading(false);
-            }
-        }, 800);
+        if (result.success) {
+            setSuccess(true);
+            setTimeout(() => {
+                navigate('/login', {
+                    state: { message: 'Password reset successful! Please login with your new password.' }
+                });
+            }, 2000);
+        } else {
+            setErrors({ general: result.error || 'Failed to reset password. Please try again.' });
+            setIsLoading(false);
+        }
     };
 
     if (success) {

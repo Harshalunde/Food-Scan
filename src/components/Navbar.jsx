@@ -27,13 +27,13 @@ const Navbar = () => {
             borderBottom: '1px solid var(--color-glass-border)'
         }}>
             <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Link to="/" style={{ fontSize: '1.5rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text)' }}>
+                <Link to="/" style={{ fontSize: '1.5rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text)', textDecoration: 'none' }}>
                     <Scan color="var(--color-primary)" /> Facts<span className="text-gradient">Scan</span>
                 </Link>
                 <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-                    <Link to="/" style={{ color: 'var(--color-text)' }}>Home</Link>
-                    <Link to="/scan" style={{ color: 'var(--color-text)' }}>Scanner</Link>
-                    <Link to="/how-it-works" style={{ color: 'var(--color-text)' }}>How It Works</Link>
+                    <Link to="/" style={{ color: 'var(--color-text)', textDecoration: 'none' }}>Home</Link>
+                    <Link to="/scan" style={{ color: 'var(--color-text)', textDecoration: 'none' }}>Scanner</Link>
+                    <Link to="/how-it-works" style={{ color: 'var(--color-text)', textDecoration: 'none' }}>How It Works</Link>
 
                     <button
                         onClick={toggleTheme}

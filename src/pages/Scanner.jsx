@@ -29,7 +29,7 @@ const Scanner = () => {
     const [loading, setLoading] = useState(false);
     const [searchResults, setSearchResults] = useState([]);
     const [activeFilter, setActiveFilter] = useState(null);
-    const [vegetarianOnly, setVegetarianOnly] = useState(false);
+
 
     // New states for camera and image upload
     const [scanMode, setScanMode] = useState(null); // 'camera' | 'upload' | null
@@ -71,7 +71,7 @@ const Scanner = () => {
         }
 
         setActiveFilter(null);
-        const results = await searchProducts(term, { vegetarian: vegetarianOnly });
+        const results = await searchProducts(term, {});
         setSearchResults(results.products || []);
         setLoading(false);
     };
@@ -307,19 +307,7 @@ const Scanner = () => {
                         style={{ display: 'none' }}
                     />
 
-                    {/* Vegetarian Toggle */}
-                    <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: vegetarianOnly ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
-                            <div style={{
-                                width: '20px', height: '20px', borderRadius: '4px', border: `2px solid ${vegetarianOnly ? 'var(--color-primary)' : 'var(--color-text-muted)'}`,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center'
-                            }}>
-                                {vegetarianOnly && <div style={{ width: '10px', height: '10px', background: 'var(--color-primary)', borderRadius: '2px' }} />}
-                            </div>
-                            <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>Vegetarian Only</span>
-                            <input type="checkbox" checked={vegetarianOnly} onChange={(e) => setVegetarianOnly(e.target.checked)} style={{ display: 'none' }} />
-                        </label>
-                    </div>
+
                 </form>
             </div>
 

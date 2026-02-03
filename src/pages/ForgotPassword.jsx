@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Mail, KeyRound, AlertCircle } from 'lucide-react';
-import otpService from '../services/otpService';
+import authService from '../services/authService';
 
 const ForgotPassword = () => {
     const navigate = useNavigate();
@@ -29,29 +29,20 @@ const ForgotPassword = () => {
             return;
         }
 
-        // Check if email exists
-        if (!otpService.emailExists(email)) {
-            setError('This email is not registered');
-            return;
-        }
-
+        // Call backend API
         setIsLoading(true);
         setError('');
 
-        // Simulate API delay
-        setTimeout(() => {
-            // Send OTP
-            const result = otpService.sendOTP(email, 'forgot-password');
+        const result = await authService.forgotPassword(email.toLowerCase().trim());
 
-            if (result.success) {
-                // Navigate to OTP verification
-                navigate('/verify-otp', { state: { email, purpose: 'forgot-password' } });
-            } else {
-                setError('Failed to send OTP. Please try again.');
-            }
+        setIsLoading(false);
 
-            setIsLoading(false);
-        }, 500);
+        if (result.success) {
+            // Navigate to OTP verification
+            navigate('/verify-otp', { state: { email: email.toLowerCase().trim(), purpose: 'forgot-password' } });
+        } else {
+            setError(result.error || 'Failed to send OTP. Please try again.');
+        }
     };
 
     return (

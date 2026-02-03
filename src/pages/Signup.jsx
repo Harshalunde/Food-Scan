@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, Mail, Lock, Eye, EyeOff, UserPlus, AlertCircle, CheckCircle } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import otpService from '../services/otpService';
+import authService from '../services/authService';
 
 const Signup = () => {
     const navigate = useNavigate();
-    const { signup } = useAuth();
 
     const [formData, setFormData] = useState({
         firstName: '',
@@ -26,8 +24,13 @@ const Signup = () => {
     };
 
     const validatePassword = (password) => {
-        // At least 6 characters
-        return password.length >= 6;
+        // Backend requires: 8+ chars, uppercase, lowercase, number, special char
+        if (password.length < 8) return false;
+        const hasUpperCase = /[A-Z]/.test(password);
+        const hasLowerCase = /[a-z]/.test(password);
+        const hasNumber = /[0-9]/.test(password);
+        const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+        return hasUpperCase && hasLowerCase && hasNumber && hasSpecialChar;
     };
 
     const handleChange = (e) => {
@@ -53,22 +56,26 @@ const Signup = () => {
 
         if (!formData.firstName.trim()) {
             newErrors.firstName = 'First name is required';
+        } else if (formData.firstName.trim().length < 2) {
+            newErrors.firstName = 'First name must be at least 2 characters';
         }
 
         if (!formData.lastName.trim()) {
             newErrors.lastName = 'Last name is required';
+        } else if (formData.lastName.trim().length < 2) {
+            newErrors.lastName = 'Last name must be at least 2 characters';
         }
 
         if (!formData.email) {
             newErrors.email = 'Email is required';
         } else if (!validateEmail(formData.email)) {
-            newErrors.email = 'Please enter a valid email address (must contain @)';
+            newErrors.email = 'Please enter a valid email address';
         }
 
         if (!formData.password) {
             newErrors.password = 'Password is required';
         } else if (!validatePassword(formData.password)) {
-            newErrors.password = 'Password must be at least 6 characters';
+            newErrors.password = 'Password must be 8+ characters with uppercase, lowercase, number, and special character';
         }
 
         if (!formData.confirmPassword) {
@@ -83,36 +90,29 @@ const Signup = () => {
         }
 
         setIsLoading(true);
+        setErrors({});
 
-        // Simulate API call delay
-        setTimeout(() => {
-            // Check if email already exists
-            if (otpService.emailExists(formData.email)) {
-                setErrors({ email: 'This email is already registered' });
-                setIsLoading(false);
-                return;
-            }
+        // Call backend API
+        const result = await authService.signup({
+            firstName: formData.firstName.trim(),
+            lastName: formData.lastName.trim(),
+            email: formData.email.toLowerCase().trim(),
+            password: formData.password
+        });
 
-            // Send OTP
-            const otpResult = otpService.sendOTP(formData.email, 'signup');
+        setIsLoading(false);
 
-            if (otpResult.success) {
-                // Store signup data temporarily in sessionStorage
-                sessionStorage.setItem('signup_data', JSON.stringify({
-                    firstName: formData.firstName,
-                    lastName: formData.lastName,
-                    email: formData.email,
-                    password: formData.password
-                }));
-
-                // Navigate to OTP verification
-                navigate('/verify-otp', { state: { email: formData.email, purpose: 'signup' } });
-            } else {
-                setErrors({ general: 'Failed to send OTP. Please try again.' });
-            }
-
-            setIsLoading(false);
-        }, 500);
+        if (result.success) {
+            // Navigate to OTP verification page
+            navigate('/verify-otp', {
+                state: {
+                    email: result.email || formData.email.toLowerCase().trim(),
+                    purpose: 'signup'
+                }
+            });
+        } else {
+            setErrors({ general: result.error || 'Signup failed. Please try again.' });
+        }
     };
 
     return (

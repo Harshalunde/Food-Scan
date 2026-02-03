@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import authService from '../services/authService';
 
 const AuthContext = createContext();
 
@@ -17,82 +18,47 @@ export const AuthProvider = ({ children }) => {
 
     // Check if user is logged in on mount
     useEffect(() => {
-        const storedUser = localStorage.getItem('factsscan_user');
-        if (storedUser) {
-            try {
-                const userData = JSON.parse(storedUser);
-                setUser(userData);
-                setIsAuthenticated(true);
-            } catch (error) {
-                console.error('Error parsing user data:', error);
-                localStorage.removeItem('factsscan_user');
-            }
+        const currentUser = authService.getCurrentUser();
+        const token = authService.getToken();
+
+        if (currentUser && token) {
+            setUser(currentUser);
+            setIsAuthenticated(true);
         }
         setLoading(false);
     }, []);
 
-    const login = (email, password) => {
-        // Get all registered users
-        const users = JSON.parse(localStorage.getItem('factsscan_users') || '[]');
+    // Login function - uses backend API
+    const login = async (email, password) => {
+        try {
+            const result = await authService.login(email, password);
 
-        // Find user with matching email and password
-        const user = users.find(u => u.email === email && u.password === password);
+            if (result.success) {
+                setUser(result.user);
+                setIsAuthenticated(true);
+            }
 
-        if (user) {
-            const userData = {
-                id: user.id,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                email: user.email
-            };
-            setUser(userData);
-            setIsAuthenticated(true);
-            localStorage.setItem('factsscan_user', JSON.stringify(userData));
-            return { success: true };
+            return result;
+        } catch (error) {
+            return { success: false, error: error.message };
         }
-
-        return { success: false, error: 'Invalid email or password' };
     };
 
-    const signup = (userData) => {
-        // Get existing users
-        const users = JSON.parse(localStorage.getItem('factsscan_users') || '[]');
-
-        // Check if email already exists
-        if (users.some(u => u.email === userData.email)) {
-            return { success: false, error: 'Email already registered' };
-        }
-
-        // Add new user
-        const newUser = {
-            id: Date.now().toString(),
-            ...userData,
-            createdAt: new Date().toISOString()
-        };
-
-        users.push(newUser);
-        localStorage.setItem('factsscan_users', JSON.stringify(users));
-
-        return { success: true };
-    };
-
+    // Logout function
     const logout = () => {
+        authService.logout();
         setUser(null);
         setIsAuthenticated(false);
-        localStorage.removeItem('factsscan_user');
     };
 
-    const updatePassword = (email, newPassword) => {
-        const users = JSON.parse(localStorage.getItem('factsscan_users') || '[]');
-        const userIndex = users.findIndex(u => u.email === email);
-
-        if (userIndex !== -1) {
-            users[userIndex].password = newPassword;
-            localStorage.setItem('factsscan_users', JSON.stringify(users));
-            return { success: true };
+    // Set user after successful OTP verification during signup
+    const setAuthUser = (userData, token) => {
+        if (token) {
+            localStorage.setItem('factsscan_token', token);
         }
-
-        return { success: false, error: 'User not found' };
+        localStorage.setItem('factsscan_user', JSON.stringify(userData));
+        setUser(userData);
+        setIsAuthenticated(true);
     };
 
     const value = {
@@ -100,9 +66,9 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated,
         loading,
         login,
-        signup,
         logout,
-        updatePassword
+        setAuthUser,
+        authService // Expose authService for signup, OTP verification, etc.
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

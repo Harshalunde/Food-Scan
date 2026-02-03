@@ -2,12 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Shield, AlertCircle, CheckCircle, RotateCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import otpService from '../services/otpService';
+import authService from '../services/authService';
 
 const OTPVerification = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { signup } = useAuth();
+    const { setAuthUser } = useAuth();
 
     const email = location.state?.email || '';
     const purpose = location.state?.purpose || 'signup';
@@ -82,52 +82,43 @@ const OTPVerification = () => {
         setIsLoading(true);
         setError('');
 
-        // Simulate API delay
-        setTimeout(() => {
-            const result = otpService.verifyOTP(email, otpValue);
-
-            if (result.success) {
-                setSuccess('OTP verified successfully!');
-
-                // Handle based on purpose
-                if (purpose === 'signup') {
-                    // Get signup data from session storage
-                    const signupData = JSON.parse(sessionStorage.getItem('signup_data') || '{}');
-
-                    // Complete signup
-                    const signupResult = signup(signupData);
-
-                    if (signupResult.success) {
-                        sessionStorage.removeItem('signup_data');
-                        setTimeout(() => {
-                            navigate('/login', {
-                                state: { message: 'Account created successfully! Please login.' }
-                            });
-                        }, 1500);
-                    } else {
-                        setError(signupResult.error);
-                        setIsLoading(false);
-                    }
-                } else if (purpose === 'forgot-password') {
-                    // Navigate to reset password page
-                    setTimeout(() => {
-                        navigate('/reset-password', { state: { email, verified: true } });
-                    }, 1500);
-                }
-            } else {
-                setError(result.error);
-                setIsLoading(false);
-            }
-        }, 800);
-    };
-
-    const handleResend = () => {
-        if (!canResend) return;
-
-        const result = otpService.sendOTP(email, purpose);
+        // Call backend API
+        const result = await authService.verifyOTP(email, otpValue, purpose);
 
         if (result.success) {
-            setSuccess('OTP resent successfully!');
+            setSuccess('✅ OTP verified successfully!');
+
+            // Handle based on purpose
+            if (purpose === 'signup') {
+                // User is automatically logged in after signup OTP verification
+                setAuthUser(result.user, result.token);
+
+                setTimeout(() => {
+                    navigate('/scan', {
+                        state: { message: 'Welcome to FactsScan! Start scanning products.' }
+                    });
+                }, 1500);
+            } else if (purpose === 'forgot-password') {
+                // Navigate to reset password page
+                setTimeout(() => {
+                    navigate('/reset-password', { state: { email, verified: true } });
+                }, 1500);
+            }
+        } else {
+            setError(result.error || 'OTP verification failed. Please try again.');
+            setIsLoading(false);
+        }
+    };
+
+    const handleResend = async () => {
+        if (!canResend) return;
+
+        setIsLoading(true);
+        const result = await authService.resendOTP(email, purpose);
+        setIsLoading(false);
+
+        if (result.success) {
+            setSuccess('✉️ New OTP sent to your email!');
             setCanResend(false);
             setResendTimer(30);
             setOtp(['', '', '', '', '', '']);
@@ -135,7 +126,7 @@ const OTPVerification = () => {
 
             setTimeout(() => setSuccess(''), 3000);
         } else {
-            setError('Failed to resend OTP. Please try again.');
+            setError(result.error || 'Failed to resend OTP. Please try again.');
         }
     };
 
