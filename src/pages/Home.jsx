@@ -131,9 +131,6 @@ const Home = () => {
                             <Link to="/scan" className="btn-primary" style={{ padding: '1.2rem 3rem', fontSize: '1.2rem' }}>
                                 <Scan size={24} /> Scan Product
                             </Link>
-                            <Link to="/scan" className="btn-secondary" style={{ padding: '1.2rem 3rem', fontSize: '1.2rem' }}>
-                                <Search size={24} /> Browse Experts Picks
-                            </Link>
                         </motion.div>
                     </motion.div>
                 </div>

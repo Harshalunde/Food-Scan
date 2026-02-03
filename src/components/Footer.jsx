@@ -104,32 +104,72 @@ const Footer = () => {
                             Resources
                         </h4>
                         <ul style={{ listStyle: 'none', padding: 0 }}>
-                            {[
-                                { label: 'Open Food Facts', external: true },
-                                { label: 'Privacy Policy', external: false },
-                                { label: 'Terms of Service', external: false },
-                                { label: 'API Documentation', external: false }
-                            ].map((link, idx) => (
-                                <li key={idx} style={{ marginBottom: '0.75rem' }}>
-                                    <a
-                                        href="#"
-                                        style={{
-                                            color: 'var(--color-text-muted)',
-                                            textDecoration: 'none',
-                                            fontSize: '0.95rem',
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '0.25rem',
-                                            transition: 'color 0.3s'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.color = '#7c3aed'}
-                                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
-                                    >
-                                        {link.label}
-                                        {link.external && <ExternalLink size={14} />}
-                                    </a>
-                                </li>
-                            ))}
+                            <li style={{ marginBottom: '0.75rem' }}>
+                                <a
+                                    href="https://world.openfoodfacts.org"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        color: 'var(--color-text-muted)',
+                                        textDecoration: 'none',
+                                        fontSize: '0.95rem',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.25rem',
+                                        transition: 'color 0.3s'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.color = '#7c3aed'}
+                                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted)'}
+                                >
+                                    Open Food Facts
+                                    <ExternalLink size={14} />
+                                </a>
+                            </li>
+                            <li style={{ marginBottom: '0.75rem' }}>
+                                <Link
+                                    to="/privacy-policy"
+                                    style={{
+                                        color: 'var(--color-text-muted)',
+                                        textDecoration: 'none',
+                                        fontSize: '0.95rem',
+                                        transition: 'color 0.3s'
+                                    }}
+                                    onMouseEnter={(e) => e.target.style.color = '#7c3aed'}
+                                    onMouseLeave={(e) => e.target.style.color = 'var(--color-text-muted)'}
+                                >
+                                    Privacy Policy
+                                </Link>
+                            </li>
+                            <li style={{ marginBottom: '0.75rem' }}>
+                                <Link
+                                    to="/terms-of-service"
+                                    style={{
+                                        color: 'var(--color-text-muted)',
+                                        textDecoration: 'none',
+                                        fontSize: '0.95rem',
+                                        transition: 'color 0.3s'
+                                    }}
+                                    onMouseEnter={(e) => e.target.style.color = '#7c3aed'}
+                                    onMouseLeave={(e) => e.target.style.color = 'var(--color-text-muted)'}
+                                >
+                                    Terms of Service
+                                </Link>
+                            </li>
+                            <li style={{ marginBottom: '0.75rem' }}>
+                                <Link
+                                    to="/api-documentation"
+                                    style={{
+                                        color: 'var(--color-text-muted)',
+                                        textDecoration: 'none',
+                                        fontSize: '0.95rem',
+                                        transition: 'color 0.3s'
+                                    }}
+                                    onMouseEnter={(e) => e.target.style.color = '#7c3aed'}
+                                    onMouseLeave={(e) => e.target.style.color = 'var(--color-text-muted)'}
+                                >
+                                    API Documentation
+                                </Link>
+                            </li>
                         </ul>
                     </div>
 

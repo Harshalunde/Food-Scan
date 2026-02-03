@@ -1,9 +1,18 @@
 import { Link } from 'react-router-dom';
-import { Scan, Sun, Moon } from 'lucide-react';
+import { Scan, Sun, Moon, User, LogOut } from 'lucide-react';
 import { useTheme } from './ThemeContext';
+import { useAuth } from '../context/AuthContext';
+import { useState } from 'react';
 
 const Navbar = () => {
     const { theme, toggleTheme } = useTheme();
+    const { isAuthenticated, user, logout } = useAuth();
+    const [showUserMenu, setShowUserMenu] = useState(false);
+
+    const handleLogout = () => {
+        logout();
+        setShowUserMenu(false);
+    };
 
     return (
         <nav style={{
@@ -44,12 +53,110 @@ const Navbar = () => {
                         {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
                     </button>
 
-                    <Link to="/scan" className="btn-primary" style={{ padding: '0.5rem 1.5rem', fontSize: '0.9rem' }}>
-                        Scan Now
-                    </Link>
+                    {isAuthenticated ? (
+                        <div style={{ position: 'relative' }}>
+                            <button
+                                onClick={() => setShowUserMenu(!showUserMenu)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    padding: '0.5rem 1rem',
+                                    background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.2) 0%, rgba(236, 72, 153, 0.2) 100%)',
+                                    border: '1px solid rgba(124, 58, 237, 0.3)',
+                                    borderRadius: 'var(--radius-full)',
+                                    color: 'var(--color-text)',
+                                    cursor: 'pointer',
+                                    fontWeight: '600'
+                                }}
+                            >
+                                <User size={18} />
+                                <span>{user?.firstName}</span>
+                            </button>
+
+                            {showUserMenu && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: 'calc(100% + 0.5rem)',
+                                    right: 0,
+                                    minWidth: '200px',
+                                    background: 'var(--gradient-card)',
+                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                    borderRadius: 'var(--radius-lg)',
+                                    padding: '0.75rem',
+                                    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)'
+                                }}>
+                                    <div style={{
+                                        padding: '0.75rem',
+                                        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                                        marginBottom: '0.5rem'
+                                    }}>
+                                        <p style={{ fontSize: '0.9rem', fontWeight: '600', marginBottom: '0.25rem' }}>
+                                            {user?.firstName} {user?.lastName}
+                                        </p>
+                                        <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                                            {user?.email}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={handleLogout}
+                                        style={{
+                                            width: '100%',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem',
+                                            padding: '0.75rem',
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: '#ef4444',
+                                            cursor: 'pointer',
+                                            borderRadius: 'var(--radius-md)',
+                                            fontSize: '0.9rem',
+                                            fontWeight: '600',
+                                            transition: 'background 0.3s'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                        <LogOut size={18} />
+                                        Logout
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <>
+                            <Link
+                                to="/login"
+                                style={{
+                                    padding: '0.5rem 1.25rem',
+                                    color: 'var(--color-text)',
+                                    textDecoration: 'none',
+                                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                                    borderRadius: 'var(--radius-full)',
+                                    fontSize: '0.9rem',
+                                    fontWeight: '600',
+                                    transition: 'all 0.3s'
+                                }}
+                            >
+                                Login
+                            </Link>
+                            <Link
+                                to="/signup"
+                                className="btn-primary"
+                                style={{
+                                    padding: '0.5rem 1.5rem',
+                                    fontSize: '0.9rem'
+                                }}
+                            >
+                                Sign Up
+                            </Link>
+                        </>
+                    )}
                 </div>
             </div>
         </nav>
     );
 };
 export default Navbar;
+

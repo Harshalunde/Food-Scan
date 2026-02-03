@@ -1,13 +1,14 @@
-
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, ArrowRight, X, Leaf, Star, Zap, Award, Check, Heart } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Search, ArrowRight, X, Leaf, Star, Zap, Award, Check, Heart, Camera, Upload, ScanLine, XCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import Webcam from 'react-webcam';
+import Quagga from 'quagga';
 import { searchProducts, getProductsByCategory, getExpertCuratedProducts } from '../services/api';
 
 const EXPERT_LISTS = [
     { id: 'high-protein', name: 'High Protein', icon: Zap, color: '#eab308' },
-    { id: 'low-sugar', name: 'Low Sugar', icon: Heart, color: '#ec4899', iconComponent: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg> }, // Using Heart as proxy or custom SVG
+    { id: 'low-sugar', name: 'Low Sugar', icon: Heart, color: '#ec4899' },
     { id: 'high-fiber', name: 'High Fiber', icon: Leaf, color: '#22c55e' },
     { id: 'low-fat', name: 'Low Fat', icon: Award, color: '#3b82f6' },
 ];
@@ -23,16 +24,37 @@ const CATEGORIES = [
     { id: 'seafood', name: 'Seafood' },
 ];
 
-// Helper to define Heart since I used it above inside the array but need it defined or imported.
-// Actually imported Heart from lucide-react above.
-
 const Scanner = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(false);
     const [searchResults, setSearchResults] = useState([]);
-    const [activeFilter, setActiveFilter] = useState(null); // 'high-protein', etc.
+    const [activeFilter, setActiveFilter] = useState(null);
     const [vegetarianOnly, setVegetarianOnly] = useState(false);
+
+    // New states for camera and image upload
+    const [scanMode, setScanMode] = useState(null); // 'camera' | 'upload' | null
+    const [cameraError, setCameraError] = useState('');
+    const [uploadError, setUploadError] = useState('');
+    const [isScanning, setIsScanning] = useState(false);
+    const [detectedBarcode, setDetectedBarcode] = useState('');
+
+    const webcamRef = useRef(null);
+    const fileInputRef = useRef(null);
+    const scanIntervalRef = useRef(null);
+
     const navigate = useNavigate();
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (scanIntervalRef.current) {
+                clearInterval(scanIntervalRef.current);
+            }
+            if (Quagga.initialized) {
+                Quagga.stop();
+            }
+        };
+    }, []);
 
     const handleSearch = async (e) => {
         e.preventDefault();
@@ -49,17 +71,6 @@ const Scanner = () => {
         }
 
         setActiveFilter(null);
-
-        // 1. Search Local Indian DB by name (case-insensitive)
-        const localMatches = [];
-        // Dynamic import to avoid circular dependencies if any, but regular import is fine here since we have it.
-        // We actually need to import INDIAN_PRODUCTS_DB at the top of file normally, 
-        // but let's assume we update the imports next.
-        // For now, let's just do the API search which we will upgrade in the api service itself.
-
-        // BETTER: Update searchProducts in api.js to handle local DB searching! 
-        // That way it's centralized.
-
         const results = await searchProducts(term, { vegetarian: vegetarianOnly });
         setSearchResults(results.products || []);
         setLoading(false);
@@ -89,11 +100,130 @@ const Scanner = () => {
         setActiveFilter(null);
     };
 
+    // Camera Barcode Scanning
+    const startCameraScanning = () => {
+        setScanMode('camera');
+        setCameraError('');
+        setIsScanning(true);
+
+        // Start scanning after camera initializes
+        setTimeout(() => {
+            if (webcamRef.current) {
+                scanIntervalRef.current = setInterval(() => {
+                    captureAndScan();
+                }, 1000); // Scan every second
+            }
+        }, 1000);
+    };
+
+    const captureAndScan = () => {
+        if (!webcamRef.current) return;
+
+        const imageSrc = webcamRef.current.getScreenshot();
+        if (!imageSrc) return;
+
+        // Create image element for Quagga
+        const img = new Image();
+        img.src = imageSrc;
+        img.onload = () => {
+            Quagga.decodeSingle({
+                src: imageSrc,
+                numOfWorkers: 0,
+                inputStream: {
+                    size: 800
+                },
+                decoder: {
+                    readers: ['ean_reader', 'ean_8_reader', 'code_128_reader', 'code_39_reader', 'upc_reader', 'upc_e_reader']
+                },
+            }, (result) => {
+                if (result && result.codeResult) {
+                    const barcode = result.codeResult.code;
+                    setDetectedBarcode(barcode);
+                    setIsScanning(false);
+                    clearInterval(scanIntervalRef.current);
+
+                    // Auto-search with detected barcode
+                    setTimeout(() => {
+                        closeScanMode();
+                        navigate(`/product/${barcode}`);
+                    }, 1500);
+                }
+            });
+        };
+    };
+
+    const handleCameraError = (error) => {
+        console.error('Camera error:', error);
+        setCameraError('Camera access denied or not available. Please check permissions.');
+        setIsScanning(false);
+    };
+
+    // Image Upload Barcode Detection
+    const handleImageUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploadError('');
+        setIsScanning(true);
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const imageSrc = event.target.result;
+
+            Quagga.decodeSingle({
+                src: imageSrc,
+                numOfWorkers: 0,
+                inputStream: {
+                    size: 800
+                },
+                decoder: {
+                    readers: ['ean_reader', 'ean_8_reader', 'code_128_reader', 'code_39_reader', 'upc_reader', 'upc_e_reader']
+                },
+            }, (result) => {
+                setIsScanning(false);
+
+                if (result && result.codeResult) {
+                    const barcode = result.codeResult.code;
+                    setDetectedBarcode(barcode);
+
+                    // Auto-search with detected barcode
+                    setTimeout(() => {
+                        closeScanMode();
+                        navigate(`/product/${barcode}`);
+                    }, 1500);
+                } else {
+                    setUploadError('No barcode detected in the image. Please try another image or ensure the barcode is clearly visible.');
+                }
+            });
+        };
+
+        reader.onerror = () => {
+            setUploadError('Failed to read the image file. Please try again.');
+            setIsScanning(false);
+        };
+
+        reader.readAsDataURL(file);
+    };
+
+    const closeScanMode = () => {
+        setScanMode(null);
+        setIsScanning(false);
+        setDetectedBarcode('');
+        setCameraError('');
+        setUploadError('');
+        if (scanIntervalRef.current) {
+            clearInterval(scanIntervalRef.current);
+        }
+        if (Quagga.initialized) {
+            Quagga.stop();
+        }
+    };
+
     return (
         <div className="container" style={{ paddingBottom: '4rem' }}>
             <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center', marginBottom: '3rem' }}>
                 <h1 className="section-title">Find Healthy Food</h1>
-                <p className="section-subtitle">Search products, explore expert lists, or browse categories.</p>
+                <p className="section-subtitle">Search products, scan barcodes, or browse expert-curated lists.</p>
 
                 {/* Search Bar */}
                 <form onSubmit={handleSearch} style={{ position: 'relative', marginTop: '2rem' }}>
@@ -114,8 +244,71 @@ const Scanner = () => {
                         </button>
                     </div>
 
+                    {/* Scan Options - Camera & Upload */}
+                    <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <motion.button
+                            type="button"
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={startCameraScanning}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                padding: '0.75rem 1.5rem',
+                                background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
+                                border: 'none',
+                                borderRadius: 'var(--radius-full)',
+                                color: '#fff',
+                                fontSize: '0.95rem',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 15px rgba(124, 58, 237, 0.3)'
+                            }}
+                        >
+                            <Camera size={20} />
+                            Scan Barcode
+                        </motion.button>
+
+                        <motion.button
+                            type="button"
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => {
+                                setScanMode('upload');
+                                fileInputRef.current?.click();
+                            }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                padding: '0.75rem 1.5rem',
+                                background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+                                border: 'none',
+                                borderRadius: 'var(--radius-full)',
+                                color: '#fff',
+                                fontSize: '0.95rem',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 15px rgba(59, 130, 246, 0.3)'
+                            }}
+                        >
+                            <Upload size={20} />
+                            Upload Image
+                        </motion.button>
+                    </div>
+
+                    {/* Hidden file input */}
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        style={{ display: 'none' }}
+                    />
+
                     {/* Vegetarian Toggle */}
-                    <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: vegetarianOnly ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
                             <div style={{
                                 width: '20px', height: '20px', borderRadius: '4px', border: `2px solid ${vegetarianOnly ? 'var(--color-primary)' : 'var(--color-text-muted)'}`,
@@ -129,6 +322,311 @@ const Scanner = () => {
                     </div>
                 </form>
             </div>
+
+            {/* Camera/Upload Modal */}
+            <AnimatePresence>
+                {scanMode === 'camera' && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{
+                            position: 'fixed',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            background: 'rgba(0, 0, 0, 0.95)',
+                            zIndex: 1000,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '2rem'
+                        }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            style={{
+                                background: 'var(--gradient-card)',
+                                borderRadius: 'var(--radius-2xl)',
+                                padding: '2rem',
+                                maxWidth: '600px',
+                                width: '100%',
+                                position: 'relative',
+                                border: '1px solid rgba(255, 255, 255, 0.1)'
+                            }}
+                        >
+                            <button
+                                onClick={closeScanMode}
+                                style={{
+                                    position: 'absolute',
+                                    top: '1rem',
+                                    right: '1rem',
+                                    background: 'rgba(239, 68, 68, 0.2)',
+                                    border: '1px solid #ef4444',
+                                    borderRadius: 'var(--radius-full)',
+                                    width: '36px',
+                                    height: '36px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    color: '#ef4444'
+                                }}
+                            >
+                                <XCircle size={20} />
+                            </button>
+
+                            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                                <div style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: '60px',
+                                    height: '60px',
+                                    borderRadius: 'var(--radius-full)',
+                                    background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
+                                    marginBottom: '1rem'
+                                }}>
+                                    <ScanLine size={30} color="#fff" />
+                                </div>
+                                <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '0.5rem' }}>
+                                    Scan Barcode
+                                </h2>
+                                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                                    Position the barcode within the frame
+                                </p>
+                            </div>
+
+                            {cameraError ? (
+                                <div style={{
+                                    padding: '1.5rem',
+                                    background: 'rgba(239, 68, 68, 0.1)',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                                    borderRadius: 'var(--radius-lg)',
+                                    textAlign: 'center',
+                                    color: '#ef4444'
+                                }}>
+                                    <XCircle size={40} style={{ marginBottom: '1rem' }} />
+                                    <p>{cameraError}</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div style={{
+                                        position: 'relative',
+                                        borderRadius: 'var(--radius-lg)',
+                                        overflow: 'hidden',
+                                        background: '#000',
+                                        aspectRatio: '4/3'
+                                    }}>
+                                        <Webcam
+                                            ref={webcamRef}
+                                            audio={false}
+                                            screenshotFormat="image/jpeg"
+                                            videoConstraints={{
+                                                facingMode: 'environment'
+                                            }}
+                                            onUserMediaError={handleCameraError}
+                                            style={{
+                                                width: '100%',
+                                                height: '100%',
+                                                objectFit: 'cover'
+                                            }}
+                                        />
+
+                                        {/* Scanning overlay */}
+                                        <div style={{
+                                            position: 'absolute',
+                                            top: '50%',
+                                            left: '50%',
+                                            transform: 'translate(-50%, -50%)',
+                                            width: '80%',
+                                            height: '40%',
+                                            border: '3px solid #7c3aed',
+                                            borderRadius: 'var(--radius-lg)',
+                                            boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)'
+                                        }}>
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: 0,
+                                                left: 0,
+                                                width: '20px',
+                                                height: '20px',
+                                                borderTop: '4px solid #ec4899',
+                                                borderLeft: '4px solid #ec4899'
+                                            }} />
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: 0,
+                                                right: 0,
+                                                width: '20px',
+                                                height: '20px',
+                                                borderTop: '4px solid #ec4899',
+                                                borderRight: '4px solid #ec4899'
+                                            }} />
+                                            <div style={{
+                                                position: 'absolute',
+                                                bottom: 0,
+                                                left: 0,
+                                                width: '20px',
+                                                height: '20px',
+                                                borderBottom: '4px solid #ec4899',
+                                                borderLeft: '4px solid #ec4899'
+                                            }} />
+                                            <div style={{
+                                                position: 'absolute',
+                                                bottom: 0,
+                                                right: 0,
+                                                width: '20px',
+                                                height: '20px',
+                                                borderBottom: '4px solid #ec4899',
+                                                borderRight: '4px solid #ec4899'
+                                            }} />
+                                        </div>
+                                    </div>
+
+                                    {detectedBarcode && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 20 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            style={{
+                                                marginTop: '1rem',
+                                                padding: '1rem',
+                                                background: 'rgba(34, 197, 94, 0.1)',
+                                                border: '1px solid rgba(34, 197, 94, 0.3)',
+                                                borderRadius: 'var(--radius-lg)',
+                                                textAlign: 'center'
+                                            }}
+                                        >
+                                            <Check size={24} color="#22c55e" style={{ marginBottom: '0.5rem' }} />
+                                            <p style={{ color: '#22c55e', fontWeight: '600' }}>
+                                                Barcode Detected: {detectedBarcode}
+                                            </p>
+                                            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                                                Redirecting to product...
+                                            </p>
+                                        </motion.div>
+                                    )}
+
+                                    {isScanning && !detectedBarcode && (
+                                        <div style={{
+                                            marginTop: '1rem',
+                                            textAlign: 'center',
+                                            color: 'var(--color-text-muted)'
+                                        }}>
+                                            <div className="animate-pulse" style={{ marginBottom: '0.5rem' }}>
+                                                <ScanLine size={24} style={{ display: 'inline-block' }} />
+                                            </div>
+                                            <p style={{ fontSize: '0.9rem' }}>Scanning for barcode...</p>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Upload Processing Modal */}
+            <AnimatePresence>
+                {scanMode === 'upload' && isScanning && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{
+                            position: 'fixed',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            background: 'rgba(0, 0, 0, 0.95)',
+                            zIndex: 1000,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '2rem'
+                        }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            style={{
+                                background: 'var(--gradient-card)',
+                                borderRadius: 'var(--radius-2xl)',
+                                padding: '3rem',
+                                textAlign: 'center',
+                                border: '1px solid rgba(255, 255, 255, 0.1)'
+                            }}
+                        >
+                            <div className="animate-pulse" style={{ marginBottom: '1rem' }}>
+                                <Upload size={48} color="#3b82f6" />
+                            </div>
+                            <h3 style={{ fontSize: '1.2rem', fontWeight: '700', marginBottom: '0.5rem' }}>
+                                Processing Image...
+                            </h3>
+                            <p style={{ color: 'var(--color-text-muted)' }}>
+                                Detecting barcode from uploaded image
+                            </p>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Upload Error Display */}
+            <AnimatePresence>
+                {uploadError && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        style={{
+                            position: 'fixed',
+                            top: '100px',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            zIndex: 1001,
+                            maxWidth: '500px',
+                            width: '90%'
+                        }}
+                    >
+                        <div style={{
+                            padding: '1.5rem',
+                            background: 'rgba(239, 68, 68, 0.95)',
+                            border: '1px solid #ef4444',
+                            borderRadius: 'var(--radius-lg)',
+                            color: '#fff',
+                            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '1rem'
+                        }}>
+                            <XCircle size={24} style={{ flexShrink: 0, marginTop: '0.2rem' }} />
+                            <div style={{ flex: 1 }}>
+                                <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>Upload Error</p>
+                                <p style={{ fontSize: '0.9rem', opacity: 0.9 }}>{uploadError}</p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setUploadError('');
+                                    setScanMode(null);
+                                }}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#fff',
+                                    cursor: 'pointer',
+                                    padding: '0.25rem'
+                                }}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {searchResults.length > 0 && (
                 <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
